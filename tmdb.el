@@ -28,6 +28,7 @@
 (require 'auth-source)
 
 (defvar tmdb-api-base-url "https://api.themoviedb.org/3/")
+
 (defvar tmdb-auth-token-username "tmdbeltoken"
   "Not really used except to search auth-source, and we apparently can't _not_ use it, so, there...")
 
@@ -65,8 +66,6 @@
 		    (setq authok t)
 		    (if (functionp save-function)
 			(funcall save-function))
-		    (if (functionp secret)
-			(funcall secret)
-		      secret)))))
+		    token))))
       (unless authok
 	(auth-source-forget+ '(:host host :port port tmdb-auth-token-username))))))
