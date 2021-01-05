@@ -2,7 +2,7 @@
 ;; Copyright (C) 2021 Gunnar Horrigmo
 
 ;; Author: Gunnar Horrigmo <gnunar@stoffe-pro.net>
-;; Keywords: extensions
+;; Keywords: extensions, entertainment, vegetation, movies 
 
 ;; This file is not part of GNU Emacs.
 
@@ -55,17 +55,13 @@
 	   '("Content-Type" . "application/json;charset=utf-8")
 	   (cons "Authorization" (concat "Bearer " token))))
 	 (resbuf)
-	 (authok))
+	 (resp))
     (unwind-protect
-	(if (and found
-		 (setq resbuf (url-retrieve-synchronously
-			       tmdb-api-base-url nil t 2)))
-	    (with-current-buffer resbuf
-	      (if (= (url-http-parse-response) 200)
-		  (progn
-		    (setq authok t)
-		    (if (functionp save-function)
-			(funcall save-function))
-		    token))))
-      (unless authok
+	(if found
+	    (with-current-buffer (url-retrieve-synchronously)
+	      (if (= (setq resp (url-http-parse-response)) 200)
+		  (if (functionp save-function)
+		      (funcall save-function))
+		token))))
+      (unless (= resp 200)
 	(auth-source-forget+ '(:host host :port port tmdb-auth-token-username))))))
