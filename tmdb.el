@@ -58,10 +58,11 @@
 	 (resp))
     (unwind-protect
 	(if found
-	    (with-current-buffer (url-retrieve-synchronously)
+	    (with-current-buffer (url-retrieve-synchronously tmdb-api-base-url)
 	      (if (= (setq resp (url-http-parse-response)) 200)
 		  (if (functionp save-function)
-		      (funcall save-function))
-		token))))
+		      (funcall save-function)))
+	      (kill-buffer (current-buffer))
+	      token))
       (unless (= resp 200)
 	(auth-source-forget+ '(:host host :port port tmdb-auth-token-username))))))
