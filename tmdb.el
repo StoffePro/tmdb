@@ -29,7 +29,7 @@
 
 (defvar tmdb-api-base-url "https://api.themoviedb.org/3/")
 
-(defvar tmdb-auth-token-username "tmdbeltoken"
+(defvar tmdb-auth-apiv4-key-username "tmdbelapiv4key"
   "Not really used except to search auth-source, and we apparently can't _not_ use it, so, there...")
 
 (defun tmdb-get-api-key ()
@@ -43,7 +43,7 @@
 					   :port port
 					   :require '(:secret)
 					   :create t
-					   :user tmdb-auth-token-username)))
+					   :user tmdb-auth-apiv4-key-username)))
 	 (secret (plist-get found :secret))
 	 (token (if (functionp secret)
 		    (funcall secret)
@@ -65,4 +65,4 @@
 	      (kill-buffer (current-buffer))
 	      token))
       (unless (= resp 200)
-	(auth-source-forget+ '(:host host :port port tmdb-auth-token-username))))))
+	(auth-source-forget+ '(:host host :port port tmdb-auth-apiv4-key-username))))))
