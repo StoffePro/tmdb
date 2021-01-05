@@ -32,7 +32,7 @@
 (defvar tmdb-auth-apiv4-key-username "tmdbelapiv4key"
   "Not really used except to search auth-source, and we apparently can't _not_ use it, so, there...")
 
-(defun tmdb-get-api-key ()
+(defun tmdb-get-apiv4-key ()
   "Get TMDB API key using the auth-source-library."
   (let* ((auth-source-creation-prompts
 	  '((secret . "Enter your TMDB API Read Access Token (v4 auth): ")))
