@@ -32,6 +32,15 @@
 (defvar tmdb-auth-apiv4-key-username "tmdbelapiv4key"
   "Not really used except to search auth-source, and we apparently can't _not_ use it, so, there...")
 
+(defun tmdb-url-get (url &optional bearer)
+  (let ((url-request-method "GET")
+	(url-request-extra-headers
+	 (list
+	  (cons "Content-Type" "application/json;charset=utf-8")
+	  (cons "Authorization"
+		(concat "Bearer " (or bearer (tmdb-get-apiv4-key)))))))
+    (url-retrieve-synchronously url)))
+
 (defun tmdb-get-apiv4-key ()
   "Get TMDB API key using the auth-source-library."
   (let* ((auth-source-creation-prompts
@@ -45,24 +54,23 @@
 					   :create t
 					   :user tmdb-auth-apiv4-key-username)))
 	 (secret (plist-get found :secret))
-	 (token (if (functionp secret)
+	 (key (if (functionp secret)
 		    (funcall secret)
 		  secret))
 	 (save-function (plist-get found :save-function))
-	 (url-request-method "GET")
-	 (url-request-extra-headers
-	  (list
-	   '("Content-Type" . "application/json;charset=utf-8")
-	   (cons "Authorization" (concat "Bearer " token))))
 	 (resbuf)
-	 (resp))
-    (unwind-protect
-	(if found
-	    (with-current-buffer (url-retrieve-synchronously tmdb-api-base-url)
-	      (if (= (setq resp (url-http-parse-response)) 200)
-		  (if (functionp save-function)
-		      (funcall save-function)))
-	      (kill-buffer (current-buffer))
-	      token))
-      (unless (= resp 200)
-	(auth-source-forget+ '(:host host :port port tmdb-auth-apiv4-key-username))))))
+	 (resp 0))
+    (if found
+	(if (functionp save-function)
+	    (unwind-protect
+		(condition-case err
+		    (with-current-buffer
+			(tmdb-url-get tmdb-api-base-url key)
+		      (if (= (setq resp (url-http-parse-response)) 200)
+			  (funcall save-function))
+		      (kill-buffer (current-buffer)))
+		  (error (user-error "%s" (err cadr))))
+	      (unless (= resp 200)
+		(auth-source-forget+
+		 '(:host host :port port tmdb-auth-apiv4-key-username)))))
+      key)))
