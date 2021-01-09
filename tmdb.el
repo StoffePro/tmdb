@@ -26,11 +26,19 @@
 (require 'url)
 (require 'url-parse)
 (require 'auth-source)
+(require 'url-util)
 
 (defvar tmdb-api-base-url "https://api.themoviedb.org/3/")
 
 (defvar tmdb-auth-apiv4-key-username "tmdbelapiv4key"
   "Not really used except to search auth-source, and we apparently can't _not_ use it, so, there...")
+
+(defun tmdb-make-url (path &optional query)
+  (let ((url (url-generic-parse-url tmdb-api-base-url))
+	(querystring (if query
+			 (concat "?" (url-build-query-string query)))))
+    (setf (url-filename url) (concat (url-filename url) path querystring))
+    (url-recreate-url url)))
 
 (defun tmdb-url-get (url &optional bearer)
   (let ((url-request-method "GET")
@@ -55,22 +63,39 @@
 					   :user tmdb-auth-apiv4-key-username)))
 	 (secret (plist-get found :secret))
 	 (key (if (functionp secret)
-		    (funcall secret)
-		  secret))
+		  (funcall secret)
+		secret))
 	 (save-function (plist-get found :save-function))
 	 (resbuf)
 	 (resp 0))
     (if found
-	(if (functionp save-function)
-	    (unwind-protect
-		(condition-case err
-		    (with-current-buffer
-			(tmdb-url-get tmdb-api-base-url key)
-		      (if (= (setq resp (url-http-parse-response)) 200)
-			  (funcall save-function))
-		      (kill-buffer (current-buffer)))
-		  (error (user-error "%s" (err cadr))))
-	      (unless (= resp 200)
-		(auth-source-forget+
-		 '(:host host :port port tmdb-auth-apiv4-key-username)))))
-      key)))
+	(progn
+	  (if (functionp save-function)
+	      (unwind-protect
+		  (condition-case err
+		      (with-current-buffer
+			  (tmdb-url-get tmdb-api-base-url key)
+			(if (= (setq resp (url-http-parse-response)) 200)
+			    (funcall save-function))
+			(kill-buffer (current-buffer)))
+		    (error (user-error "%s" (err cadr))))
+		(unless (= resp 200)
+		  (auth-source-forget+
+		   '(:host host :port port tmdb-auth-apiv4-key-username)))))
+	  key))))
+
+(defvar tmdb-configuration
+  (let ((buf (tmdb-url-get (tmdb-make-url "configuration")))
+	(config))
+    (unwind-protect
+	(with-current-buffer buf
+	  (if (= (url-http-parse-response) 200)
+	      (progn
+		(re-search-forward "\n\n")
+		(setq config (json-parse-buffer)))))
+      (kill-buffer buf))
+    config))
+
+(provide 'tmdb)
+
+;;; tmdb.el ends here
