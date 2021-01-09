@@ -86,13 +86,27 @@
 
 (defvar tmdb-configuration
   (let ((buf (tmdb-url-get (tmdb-make-url "configuration")))
-	(config))
+	(config)
+	(confighash)
+	(images))
     (unwind-protect
 	(with-current-buffer buf
 	  (if (= (url-http-parse-response) 200)
 	      (progn
 		(re-search-forward "\n\n")
-		(setq config (json-parse-buffer)))))
+		(setq confighash (json-parse-buffer))
+		(dolist (key '("base_url"
+			       "secure_base_url"
+			       "backdrop_sizes"
+			       "logo_sizes"
+			       "poster_sizes"
+			       "profile_sizes"
+			       "still_sizes"))
+		  (setq images (plist-put images
+					  (make-symbol (concat ":" key))
+					  (gethash key (gethash "images" confighash)))))
+		(setq config (plist-put config :images images))
+		(setq config (plist-put config :change_keys (gethash "change_keys" confighash))))))
       (kill-buffer buf))
     config))
 
