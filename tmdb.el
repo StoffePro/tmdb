@@ -2,7 +2,7 @@
 ;; Copyright (C) 2021 Gunnar Horrigmo
 
 ;; Author: Gunnar Horrigmo <gnunar@stoffe-pro.net>
-;; Keywords: extensions, entertainment, vegetation, movies 
+;; Keywords: extensions, external, communication, entertainment, movies
 
 ;; This file is not part of GNU Emacs.
 
@@ -24,14 +24,26 @@
 ;;; Code:
 
 (require 'url)
+(require 'url-http)
+(require 'url-util)
 (require 'url-parse)
 (require 'auth-source)
-(require 'url-util)
 
 (defvar tmdb-api-base-url "https://api.themoviedb.org/3/")
 
 (defvar tmdb-auth-apiv4-key-username "tmdbelapiv4key"
   "Not really used except to search auth-source, and we apparently can't _not_ use it, so, there...")
+
+(defgroup tmdb nil
+  "Querying The Movie Databse (TMDb)"
+  :link '(url-link "https://developers.themoviedb.org/")
+  :group 'comm)
+
+(defcustom tmdb-search-include-adult t
+  "Whether to include adult titles in searches"
+  :type '(choice (const :tag "no" nil)
+		 (const :tag "yes" t))
+  :group 'tmdb)
 
 (defun tmdb-make-url (path &optional query)
   (let ((url (url-generic-parse-url tmdb-api-base-url))
@@ -91,24 +103,56 @@
 	(images))
     (unwind-protect
 	(with-current-buffer buf
-	  (if (= (url-http-parse-response) 200)
-	      (progn
-		(re-search-forward "\n\n")
-		(setq confighash (json-parse-buffer))
-		(dolist (key '("base_url"
-			       "secure_base_url"
-			       "backdrop_sizes"
-			       "logo_sizes"
-			       "poster_sizes"
-			       "profile_sizes"
-			       "still_sizes"))
-		  (setq images (plist-put images
-					  (make-symbol (concat ":" key))
-					  (gethash key (gethash "images" confighash)))))
-		(setq config (plist-put config :images images))
-		(setq config (plist-put config :change_keys (gethash "change_keys" confighash))))))
+	  (when (= (url-http-parse-response) 200)
+	    (re-search-forward "\n\n")
+	    (setq confighash (json-parse-buffer))
+	    (dolist (key '("base_url"
+			   "secure_base_url"
+			   "backdrop_sizes"
+			   "logo_sizes"
+			   "poster_sizes"
+			   "profile_sizes"
+			   "still_sizes"))
+	      (setq images (plist-put images
+				      (make-symbol (concat ":" key))
+				      (gethash key (gethash "images" confighash)))))
+	    (setq config (plist-put config :images images))
+	    (setq config (plist-put config :change_keys (gethash "change_keys" confighash)))))
       (kill-buffer buf))
     config))
+
+(defvar tmdb-api-path-search-movie "search/movie")
+(defvar tmdb-search-more-results nil)
+
+(defun tmdb-search-movie (query &optional page include-adult region year primary-release-year)
+  (let ((params)
+	(buf)
+	(data))
+    (loop for param in `(("query" ,query)
+			 ("page" ,page)
+			 ("include_adult" ,include-adult)
+			 ("region" ,region)
+			 ("year" ,year)
+			 ("primary_release_year" ,primary-release-year))
+	  do (if (second param)
+		 (add-to-list 'params param)))
+    (setq buf (tmdb-url-get (tmdb-make-url tmdb-api-path-search-movie params)))
+    (unwind-protect
+	(with-current-buffer buf
+	  (when (= (url-http-parse-response) 200)
+	    (re-search-forward "\n\n")
+	    (setq data (json-parse-buffer))))
+      (kill-buffer buf)
+      (if (> (gethash "total_pages" data) (gethash "page" data))
+	  (setq tmdb-search-more-results `(tmdb-search-movie . (,query ,(1+ (gethash "page" data)) ,include-adult ,region ,year ,primary-release-year)))
+	(setq tmdb-search-more-results nil)))
+    data))
+
+(defun tmdb-search-get-more-results ()
+  (when tmdb-search-more-results
+    (apply (car tmdb-search-more-results) (cdr tmdb-search-more-results))))
+
+
 
 (provide 'tmdb)
 
